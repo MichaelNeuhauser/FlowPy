@@ -51,7 +51,8 @@ class Cell:
         self.max_distance = 0
         self.min_gamma = 0
         self.max_gamma = 0
-        self.sl_gamma = 0             
+        self.sl_gamma = 0
+        #self.fp_gamma_max_bf = 90 #backfilled gamma along whole flow-path             
 
         if type(startcell) == bool:  # check, if start cell exist (start cell is release point)
             self.is_start = True  # set is_start to True
@@ -76,8 +77,14 @@ class Cell:
             dx = abs(parent.colindex - self.colindex)
             dy = abs(parent.rowindex - self.rowindex)
             dist_min.append(math.sqrt(dx ** 2 + dy ** 2) * self.cellsize + parent.min_distance)
+        
         self.min_distance = np.amin(dist_min)
         self.max_gamma = np.rad2deg(np.arctan(dh / self.min_distance))
+        
+        #2023-01-30 testing backfill - NB. this is not yet working as expected
+        #self.fp_gamma_max_bf = self.max_gamma
+        #for parent in self.parent:
+        #    self.fp_gamma_max_bf = min(self.fp_gamma_max_bf,parent.max_gamma)    
 
     def calc_sl_travelangle(self):
         dx = abs(self.startcell.colindex - self.colindex)
