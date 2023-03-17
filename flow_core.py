@@ -468,13 +468,13 @@ def calculation_small(args):
     max_z_delta = args[7]
     #print(len(args), max_z_delta)
 
-    z_delta_array = np.zeros_like(dem,dtype=float)
-    z_delta_sum = np.zeros_like(dem,dtype=float)
-    flux_array = np.zeros_like(dem,dtype=float)
-    count_array = np.zeros_like(dem,dtype=float)
-    backcalc = np.zeros_like(dem,dtype=float)
-    fp_travelangle_array = np.zeros_like(dem,dtype=float)
-    sl_travelangle_array = np.ones_like(dem,dtype=float) * 90.
+    z_delta_array = np.zeros_like(dem)
+    z_delta_sum = np.zeros_like(dem)
+    flux_array = np.zeros_like(dem)
+    count_array = np.zeros_like(dem)
+    backcalc = np.zeros_like(dem)
+    fp_travelangle_array = np.zeros_like(dem)
+    sl_travelangle_array = np.ones_like(dem) * 90
     back_list = []
 
     cellsize = header["cellsize"]
@@ -587,22 +587,13 @@ def calculation_effect_small(args):
     flux_threshold = args[5]
     max_z_delta = args[6]
 
-    z_delta_array = np.zeros_like(dem,dtype=float)
-    z_delta_sum = np.zeros_like(dem,dtype=float)
-    flux_array = np.zeros_like(dem,dtype=float)
-    count_array = np.zeros_like(dem,dtype=int)
-    backcalc = np.zeros_like(dem,dtype=float)
-    fp_travelangle_array = np.zeros_like(dem,dtype=float)  # fp = Flow Path
-    sl_travelangle_array = np.zeros_like(dem,dtype=float)  # sl = Straight Line
-    
-    '''
-    "Backfilled Travel Angles" ... independently from the flow path longitudinal profile (convex, parabolical, concave or complex)
-    the 'backfilled travel angles' should be steadily decreasing from release are to stop point. i.e. having a cell along the path with lower
-    altitude, but having a higher alpha-angle should be probhibited (background: in OEKO-Schuwa we use travel angles along the path and map
-    them to ''reach-probabilities'' in the range of [0,...1], so it makes sense to not have points farther away from the release area
-    having a larger reach probability than closer ones due to undulations in the profile)
-    '''
-    #fp_travelangle_array_bf = np.zeros_like(dem,dtype=float) #ADDED 2023-01-30 this should be the "backfilled travel angles"
+    z_delta_array = np.zeros_like(dem)
+    z_delta_sum = np.zeros_like(dem)
+    flux_array = np.zeros_like(dem)
+    count_array = np.zeros_like(dem)
+    backcalc = np.zeros_like(dem)
+    fp_travelangle_array = np.zeros_like(dem)  # fp = Flow Path
+    sl_travelangle_array = np.zeros_like(dem)  # sl = Straight Line
 
     cellsize = header["cellsize"]
     nodata = header["noDataValue"]
@@ -662,7 +653,6 @@ def calculation_effect_small(args):
                     Cell(row[k], col[k], dem_ng, cellsize, flux[k], z_delta[k], cell, alpha, exp, flux_threshold, max_z_delta, startcell))
 
         for cell in cell_list:
-            #cell.calc_distribution()
             z_delta_array[cell.rowindex, cell.colindex] = max(z_delta_array[cell.rowindex, cell.colindex], cell.z_delta)
             flux_array[cell.rowindex, cell.colindex] = max(flux_array[cell.rowindex, cell.colindex],
                                                            cell.flux)
@@ -672,11 +662,8 @@ def calculation_effect_small(args):
                                                                      cell.max_gamma)
             sl_travelangle_array[cell.rowindex, cell.colindex] = max(sl_travelangle_array[cell.rowindex, cell.colindex],
                                                                      cell.sl_gamma)
-            #2023-01-30 testing steadily decreasing output of alpha angles along flow path
-            #fp_travelangle_array_bf[cell.rowindex, cell.colindex] = max(fp_travelangle_array_bf[cell.rowindex, cell.colindex],
-            #                                                            cell.fp_gamma_max_bf)
 
         startcell_idx += 1
     end = datetime.now().replace(microsecond=0)
     print('\n Time needed: ' + str(end - start))
-    return z_delta_array, flux_array, count_array, z_delta_sum, backcalc, fp_travelangle_array, sl_travelangle_array, #fp_travelangle_array_bf
+    return z_delta_array, flux_array, count_array, z_delta_sum, backcalc, fp_travelangle_array, sl_travelangle_array

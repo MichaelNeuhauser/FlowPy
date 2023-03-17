@@ -537,7 +537,7 @@ def main(args, kwargs):
 
     if (header['ncols'] * cellsize > 25000) or (header['nrows'] * cellsize > 25000):
 
-        logging.info("Tiling is ON, because DEM dimensions larger than 25km in x and/or y")
+        logging.info("Tiling is ON, because DEM dimensions larger than 15km in x and/or y")
         logging.info("Start Tiling.")
         print("Start Tiling...")
 
@@ -615,12 +615,11 @@ def main(args, kwargs):
 
         z_delta = np.zeros_like(dem)
         flux = np.zeros_like(dem)
-        cell_counts = np.zeros_like(dem,dtype=np.int16)
-        z_delta_sum = np.zeros_like(dem,dtype=float)
+        cell_counts = np.zeros_like(dem)
+        z_delta_sum = np.zeros_like(dem)
         backcalc = np.zeros_like(dem)
-        fp_ta = np.zeros_like(dem,dtype=float)
-        sl_ta = np.zeros_like(dem,dtype=float)
-        #fp_ta_bf = np.zeros_like(dem,dtype=float)
+        fp_ta = np.zeros_like(dem)
+        sl_ta = np.zeros_like(dem)
 #
         z_delta_list = []
         flux_list = []
@@ -629,7 +628,6 @@ def main(args, kwargs):
         backcalc_list = []
         fp_ta_list = []
         sl_ta_list = []
-        #fp_ta_bf_list = []
         for i in range(len(results)):
             res = results[i]
             res = list(res)
@@ -640,7 +638,6 @@ def main(args, kwargs):
             backcalc_list.append(res[4])
             fp_ta_list.append(res[5])
             sl_ta_list.append(res[6])
-            #fp_ta_bf_list.append(res[7])
 
         logging.info('Calculation finished, getting results.')
         for i in range(len(z_delta_list)):
@@ -651,7 +648,6 @@ def main(args, kwargs):
             backcalc = np.maximum(backcalc, backcalc_list[i])
             fp_ta = np.maximum(fp_ta, fp_ta_list[i])
             sl_ta = np.maximum(sl_ta, sl_ta_list[i])
-            #fp_ta_bf = np.maximum(fp_ta_bf,fp_ta_bf_list[i])
 
     # time_string = datetime.now().strftime("%Y%m%d_%H%M%S")
     logging.info('Writing Output Files')
@@ -665,9 +661,6 @@ def main(args, kwargs):
     io.output_raster(dem_path,
                      directory + res_dir + "FP_travel_angle{}".format(output_format),
                      fp_ta)
-    #io.output_raster(dem_path,
-    #                 directory + res_dir + "FP_travel_angle_backFill{}".format(output_format),
-    #                 fp_ta_bf)
     io.output_raster(dem_path,
                      directory + res_dir + "SL_travel_angle{}".format(output_format),
                      sl_ta)
