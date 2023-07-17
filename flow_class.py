@@ -58,8 +58,8 @@ class Cell:
         self.max_added_friction_forest = 10 # degrees added to friction angle
         self.min_added_friction_forest = 2 # minimium effect forested terrain can have
         self.no_friction_effect_v = 30 # velocity shared for friction and detrainment methods
-        self.max_added_detrainment_forest = 0.0003 #
-        self.min_added_detrainment_forest = 0.00001
+        self.max_added_detrainment_forest = 0 #0.0003 #
+        self.min_added_detrainment_forest = 0 #0.00001
         self.no_detrainmnet_effect_v = 30 #
 
         if type(startcell) == bool:  # check, if start cell exist (start cell is release point)
@@ -75,7 +75,7 @@ class Cell:
     def add_os(self, flux):
         self.flux += flux
 
-    def forest_detrainment(self ):
+    def forest_detrainment(self):
         """
         linear decrease of forest effect with regard to alpha increase and kinetic energy height
         This is the detrainment routine for forest. It should reduce the routing flux of the avalanche.

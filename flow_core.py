@@ -292,10 +292,10 @@ def calculation_effect(args):
     header = args[1]
     forest = args[2]
     release = args[3]
-    alpha = args[4]
-    exp = args[5]
-    flux_threshold = args[6]
-    max_z_delta = args[7]
+    alpha = float(args[4])
+    exp = float(args[5])
+    flux_threshold = float(args[6])
+    max_z_delta = float(args[7])
 
     z_delta_array = np.zeros_like(dem)
     z_delta_sum = np.zeros_like(dem)
@@ -326,6 +326,8 @@ def calculation_effect(args):
         if (nodata in dem_ng) or np.size(dem_ng) < 9:
             startcell_idx += 1
             continue
+            
+        #print('FOREST: %s'%forest[row_idx, col_idx])
 
         startcell = Cell(row_idx, col_idx, dem_ng, forest[row_idx, col_idx], 
                          cellsize, 1, 0, None,
