@@ -214,7 +214,7 @@ def main(args, kwargs):
         print("No Tiling!")
         logging.info("No Tiling!")
         if infra_bool:
-            release_list = fc.split_release(release, release_header, nCPU)
+            release_list = fc.split_release(release, nCPU)
 
             print("{} Processes started.".format(len(release_list)))
             pool = mp.Pool(len(release_list))
@@ -224,7 +224,7 @@ def main(args, kwargs):
             pool.close()
             pool.join()
         else:
-            release_list = fc.split_release(release, release_header, nCPU)
+            release_list = fc.split_release(release, nCPU)
 
             print("{} Processes started.".format(len(release_list)))
             pool = mp.Pool(nCPU)

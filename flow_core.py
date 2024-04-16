@@ -384,53 +384,60 @@ def calculation_effect(optTuple):
     print('\n Time needed: ' + str(end - start))
     #return z_delta_array, flux_array, count_array, z_delta_sum, backcalc, fp_travelangle_array, sl_travelangle_array
 
-def split_release(release, header_release, pieces):
-    """Split the release layer in several tiles, the number is depending on the
-    available CPU Cores, so every Core gets one tile. The area is determined by
-    the number of release pixels in it, so that every tile has the same amount
-    of release pixels in it. Splitting in x(Columns) direction.
-    The release tiles have still the size of the original layer, so no split
-    for the DEM is needed.
+def split_release(release, pieces):
+    """ Split the release layer in several tiles. The area is determined by
+        the number of release pixels in it, so that every tile has the same amount
+        of release pixels in it.
 
-    Input parameters:
-        release         the release layer with release pixels as int > 0
-        header_release  the header of the release layer to identify the
-                        noDataValue
+        In this version the split is performed along a flattened 2D-array to ensure
+        a more even splitting of release pixels than just along the x-Axis ...
+    
+        NOTE: TO DO: Ideally a 'greedy' algorithm would let idle CPU cores 'snatch' any 
+        un-processed release cell until all releaseCells are handled -- this would
+        ensure that the total workload is distributed evenly along all CPUs (which
+        becomes an important factor for bigger model areas) !!!
 
-    Output parameters:
-        release_list    A list with the tiles(arrays) in it [array0, array1, ..]
-        """
+        The release tiles have still the size of the original layer, so no split
+        for the DEM is needed.
 
-    nodata = header_release["noDataValue"]
-    if nodata:
-        release[release == nodata] = 0
-    else:
-        print("Release Layer has no No Data Value, negative Value asumed!")
-        release[release < 0] = 0
-    release[release > 1] = 1
-    summ = np.sum(release) # Count number of release pixels
-    print("Number of release pixels: ", summ)
-    sum_per_split = summ/pieces  # Divide the number by avaiable Cores
+        Parameters
+        -----------
+        release: np.array - assumes a binary 0|1 array with  release pixels designated by '1'
+        pieces:  int - number of chunck in which the release layer should be split
+
+        Returns
+        -----------
+        release_list:    A list with the tiles(arrays) in it [array0, array1, ..]
+    """
+    
+
+    # Flatten the array and compute the cumulative sum
+    flat_release = release.flatten()
+    cumulative_sum = np.cumsum(flat_release)
+
+    total_sum = cumulative_sum[-1]
+    sum_per_split = total_sum / pieces
+
     release_list = []
-    breakpoint_x = 0
+    start_index = 0
 
-    #2022-09-06 - AH: Note - maybe we need to think of sth. smarter here!!
-    #i.e. not slicing in columns??
-    for i in range(breakpoint_x, release.shape[1]):
-        if len(release_list) == (pieces - 1):
-            c = np.zeros_like(release)
-            c[:, breakpoint_x:] = release[:, breakpoint_x:]
-            release_list.append(c)
-            break
-        if np.sum(release[:, breakpoint_x:i]) < sum_per_split:
-            continue
-        else:
-            c = np.zeros_like(release)
-            c[:, breakpoint_x:i] = release[:, breakpoint_x:i]
-            release_list.append(c)
-            print("Release Split from {} to {}".format(breakpoint_x, i))
-            breakpoint_x = i
+    for i in range(1, pieces):
+        # Find the split point in the flattened array
+        split_index = np.searchsorted(cumulative_sum, sum_per_split * i)
 
+        # Create a new array for this split
+        split_flat = np.zeros_like(flat_release)
+        split_flat[start_index:split_index] = flat_release[start_index:split_index]
+
+        # Reshape the flat array back to 2D and add to the list
+        release_list.append(split_flat.reshape(release.shape))
+
+        start_index = split_index
+
+    # Handle the last piece
+    split_flat = np.zeros_like(flat_release)
+    split_flat[start_index:] = flat_release[start_index:]
+    release_list.append(split_flat.reshape(release.shape))
 
     return release_list
 
