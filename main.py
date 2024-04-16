@@ -531,7 +531,7 @@ def main(args, kwargs):
     logging.info('Multiprocessing starts, used cores: {}'.format(cpu_count()))
 
     if calc_bool:
-        release_list = fc.split_release(release, release_header, min(mp.cpu_count() * 2, max_number_procces))
+        release_list = fc.split_release(release, min(mp.cpu_count() * 2, max_number_procces))
 
         print("{} Processes started.".format(len(release_list)))
         pool = mp.Pool(len(release_list))
@@ -541,7 +541,7 @@ def main(args, kwargs):
         pool.close()
         pool.join()
     else:
-        release_list = fc.split_release(release, release_header, min(mp.cpu_count() * 4, max_number_procces))
+        release_list = fc.split_release(release, min(mp.cpu_count() * 4, max_number_procces))
 
         print("{} Processes started.".format(len(release_list)))
         pool = mp.Pool(mp.cpu_count())

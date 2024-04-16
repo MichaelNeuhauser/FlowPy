@@ -93,38 +93,33 @@ def divide_chunks(l, n):
         yield l[i:i+n]
 
 
-def split_release(release, header_release, pieces):
+def split_release(release, pieces):
     """Split the release layer in several tiles, the number is depending on the
     available CPU Cores, so every Core gets one tile. The area is determined by
     the number of release pixels in it, so that every tile has the same amount
-    of release pixels in it. Splitting in x(Columns) direction. 
+    of release pixels in it. Splitting in x(Columns) direction.
     The release tiles have still the size of the original layer, so no split
     for the DEM is needed.
-    
-    Input parameters: 
+
+    Input parameters:
         release         the release layer with release pixels as int > 0
-        header_release  the header of the release layer to identify the 
+        header_release  the header of the release layer to identify the
                         noDataValue
-                        
+
     Output parameters:
         release_list    A list with the tiles(arrays) in it [array0, array1, ..]
         """
-        
-    nodata = header_release["noDataValue"]
-    if nodata:
-        release[release == nodata] = 0
-    else:
-        print("Release Layer has no No Data Value, negative Value asumed!")
-        release[release < 0] = 0
-    release[release > 1] = 1
-    summ = np.sum(release) # Count number of release pixels
-    print("Number of release pixels: ", summ)
-    sum_per_split = summ/pieces  # Divide the number by avaiable Cores
-    release_list = []
-    breakpoint_x = 0
 
-    for i in range(breakpoint_x, release.shape[1]):
-        if len(release_list) == (pieces - 1):
+    release[release < 0] = 0
+    release[release > 1] = 1
+    sumRelease = np.sum(release) # Count number of release pixels
+    sum_per_split = sumRelease/pieces  # Divide the number by avaiable Cores
+    release_list = []
+    #2022-09-06 - AH: Note - maybe we need to think of sth. smarter here!!
+    #i.e. not slicing in columns??    
+    breakpoint_x = 0
+    for i in range(release.shape[1]):
+        if (len(release_list) == (pieces - 1)) or (np.sum(release[:, i:]) <= sum_per_split):
             c = np.zeros_like(release)
             c[:, breakpoint_x:] = release[:, breakpoint_x:]
             release_list.append(c)
@@ -137,7 +132,7 @@ def split_release(release, header_release, pieces):
             release_list.append(c)
             print("Release Split from {} to {}".format(breakpoint_x, i))
             breakpoint_x = i
-
+    
     return release_list
 
     
