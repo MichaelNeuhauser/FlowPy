@@ -163,21 +163,6 @@ class Cell:
                         self.persistence[0, 1] += 0.707 * maxweight
                         self.persistence[1, 0] += 0.707 * maxweight
                         
-# =============================================================================
-#                 # New Calculation:
-#                 theta_child = np.array([[np.pi*5/4, np.pi*3/2 , np.pi*7/4], [np.pi, 0, 0], [np.pi*3/4, np.pi/2 , np.pi/4]])
-#                 theta_parent = (np.arctan2(dy, dx))
-#                 
-#                 pers1 = theta_parent - theta_child - np.pi
-#                 pers = np.zeros((3,3))
-#                 
-#                 for idx, element in np.ndenumerate(pers1):
-#                     pers[idx] = max(0, np.cos(element))
-#                     if pers[idx] < 2*np.finfo(np.float64).eps:
-#                         pers[idx] = 0
-#                 pers[1, 1] = 0
-#                 self.persistence += pers * maxweight
-# =============================================================================
                     
     def calc_distribution(self):
 

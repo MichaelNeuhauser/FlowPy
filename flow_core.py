@@ -140,9 +140,9 @@ def calculation(optTuple):
     startcell_idx = 0
     while startcell_idx < len(row_list):
         
-        sys.stdout.write('\r' "Calculating Startcell: " + str(startcell_idx + 1) + " of " + str(len(row_list)) + " = " + str(
-            round((startcell_idx + 1) / len(row_list) * 100, 2)) + "%" '\r')
-        sys.stdout.flush()
+        #sys.stdout.write('\r' "Calculating Startcell: " + str(startcell_idx + 1) + " of " + str(len(row_list)) + " = " + str(
+        #    round((startcell_idx + 1) / len(row_list) * 100, 2)) + "%" '\r')
+        #sys.stdout.flush()
       
         row_idx = row_list[startcell_idx]
         col_idx = col_list[startcell_idx]
@@ -254,7 +254,7 @@ def calculation(optTuple):
         np.save(temp_dir + "./res_backcalc_{}_{}".format(optTuple[0], optTuple[1]), backcalc)
     
     logging.info("finished calculation {}_{}".format(optTuple[0], optTuple[1])) #ToDo!
-    print("Finished calculation {}_{}".format(optTuple[0], optTuple[1]))
+    #print("Finished calculation {}_{}".format(optTuple[0], optTuple[1]))
     
     end = datetime.now()       
-    print('\n Time needed: ' + str(end - start))
+    #print('\n Time needed: ' + str(end - start))

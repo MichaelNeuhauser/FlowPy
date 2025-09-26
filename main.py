@@ -35,6 +35,137 @@ import flow_core as fc
 import split_and_merge as SPAM
 from gui import Flow_Py_EXEC
 
+# import for TerminalUpdate
+from dataclasses import dataclass
+from typing import Dict
+import multiprocessing as mp
+
+# rich (pip install rich)
+from rich.live import Live
+from rich.table import Table
+from rich import box
+from rich.progress import Progress, BarColumn, TextColumn, TaskProgressColumn, TimeRemainingColumn, TimeElapsedColumn
+
+# --- progress messaging between workers and printer ---
+
+UPDATE_Q = None  # set in pool initializer
+@dataclass
+class RowUpdate:
+    worker_name: str
+    status: str
+    message: str
+
+# message sent when one tile finishes
+# include the worker name so the printer can attribute the completion
+TILE_DONE_TAG = "__tile_done__"
+
+# message to stop printer
+STOP_MSG = ("__stop__", None)
+
+def _pool_initializer(q):
+    """Runs once in each worker process; gives workers access to the queue."""
+    global UPDATE_Q
+    UPDATE_Q = q
+
+def _calc_wrapper(opt_tuple):
+    """
+    Wrap fc.calculation so each task streams status to the printer.
+    Expects opt_tuple = (i, j, alpha, exp, cellsize, nodata, flux_threshold, max_z, temp_dir, infra_bool)
+    """
+    i, j = opt_tuple[0], opt_tuple[1]
+    name = mp.current_process().name  # e.g., 'SpawnPoolWorker-1' on Windows
+
+    # tell printer we (this worker) are starting a tile
+    if UPDATE_Q is not None:
+        UPDATE_Q.put(RowUpdate(name, "running", f"tile ({i},{j}) start"))
+
+    # run the real computation
+    fc.calculation(opt_tuple)
+
+    # notify tile done and advance overall progress
+    if UPDATE_Q is not None:
+        UPDATE_Q.put(RowUpdate(name, "running", f"tile ({i},{j}) ✅ done"))
+        UPDATE_Q.put((TILE_DONE_TAG, name))   # attribute completion to this worker
+
+        
+from collections import defaultdict
+
+def _render_table(state: Dict[str, RowUpdate], counts: Dict[str, int]) -> Table:
+    t = Table(title="Workers", box=box.SIMPLE_HEAVY)
+    t.add_column("Worker", style="bold")
+    t.add_column("Status")
+    t.add_column("Message", overflow="fold")
+    for w in sorted(state.keys()):
+        r = state[w]
+        done = counts.get(w, 0)
+        status = f"{r.status} • {done} done" if done else r.status
+        t.add_row(w, status, r.message)
+    return t
+
+
+def progress_printer(n_workers: int, total_tiles: int, q: mp.Queue):
+    state: Dict[str, RowUpdate] = {}
+    counts: Dict[str, int] = defaultdict(int)
+
+    columns = [
+        TextColumn("{task.description}", justify="left"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+    ]
+
+    with Progress(*columns, transient=False) as progress:
+        overall = progress.add_task("overall", total=total_tiles, start=True)
+
+        with Live(_render_table(state, counts), refresh_per_second=20, transient=False) as live:
+            done_tiles = 0
+            while True:
+                msg = q.get()
+                if msg == STOP_MSG:
+                    break
+
+                # handle per-tile completion tagged with the worker name
+                if isinstance(msg, tuple) and len(msg) == 2 and msg[0] == TILE_DONE_TAG:
+                    worker_name = msg[1]
+                    counts[worker_name] += 1
+                    done_tiles += 1
+                    progress.update(overall, completed=done_tiles)
+                    # make sure the row exists so counts show up immediately
+                    state.setdefault(worker_name, RowUpdate(worker_name, "running", ""))
+                    live.update(_render_table(state, counts))
+                    continue
+
+                # normal row update
+                upd: RowUpdate = msg
+                state.setdefault(upd.worker_name, RowUpdate(upd.worker_name, "—", ""))
+                state[upd.worker_name] = upd
+                live.update(_render_table(state, counts))
+
+            
+def remove_temp_dir(path):
+    if not os.path.exists(path):
+        return
+    # walk through all subdirs and files
+    for root, dirs, files in os.walk(path, topdown=False):
+        for name in files:
+            try:
+                os.remove(os.path.join(root, name))
+            except Exception as e:
+                print(f"Could not delete file {name}: {e}")
+        for name in dirs:
+            try:
+                os.rmdir(os.path.join(root, name))
+            except Exception as e:
+                print(f"Could not delete dir {name}: {e}")
+    try:
+        os.rmdir(path)
+        print(f"Temporary folder {path} removed.")
+    except Exception as e:
+        print(f"Could not remove folder {path}: {e}")
+
+
+
 
 def main(args, kwargs): 
 
@@ -167,11 +298,28 @@ def main(args, kwargs):
 
     # Calculation
     logging.info('Multiprocessing starts, used cores: {}'.format(cpu_count() - 1))
-    print("{} Processes started and {} calculations to perform.".format(mp.cpu_count() - 1, len(optList)))
-    pool = mp.Pool(mp.cpu_count() - 1)
-    pool.map(fc.calculation, optList)
-    pool.close()
-    pool.join()
+    # Calculation
+    n_workers = max(1, mp.cpu_count() - 1)
+    total_tiles = len(optList)
+    logging.info('Multiprocessing starts, used cores: {}'.format(n_workers))
+    print(f"{n_workers} processes started and {total_tiles} calculations to perform.")
+    
+    # queue for status updates
+    q = mp.Manager().Queue()
+    
+    # start the printer as a process (keeps terminal output serialized & pretty)
+    printer = mp.Process(target=progress_printer, args=(n_workers, total_tiles, q), daemon=True)
+    printer.start()
+    
+    # start the pool with initializer so each worker can access UPDATE_Q
+    with mp.Pool(processes=n_workers, initializer=_pool_initializer, initargs=(q,)) as pool:
+        # Use imap_unordered so tiles complete out-of-order but streaming stays live
+        list(pool.imap_unordered(_calc_wrapper, optList, chunksize=1))
+    
+    # tell printer to stop and wait for it
+    q.put(STOP_MSG)
+    printer.join()
+
 
     logging.info('Calculation finished, merging results.')
     
@@ -216,6 +364,7 @@ def main(args, kwargs):
     print("...")
     end = datetime.now().replace(microsecond=0)
     logging.info('Calculation needed: ' + str(end - start) + ' seconds')
+    remove_temp_dir(temp_dir)
 
 
 if __name__ == '__main__':
