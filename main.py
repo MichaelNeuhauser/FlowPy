@@ -20,7 +20,10 @@ Created on Mon May  7 14:23:00 2018
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 # import standard libraries
+import csv
+import glob
 import os
+import subprocess
 import sys
 import numpy as np
 from datetime import datetime
@@ -33,6 +36,7 @@ import pickle
 import raster_io as io
 import flow_core as fc
 import split_and_merge as SPAM
+import timers
 from gui import Flow_Py_EXEC
 
 # import for TerminalUpdate
@@ -48,7 +52,21 @@ from rich.progress import Progress, BarColumn, TextColumn, TaskProgressColumn, T
 
 # --- progress messaging between workers and printer ---
 
+VERSION = "0.1.0"  # bump this when the algorithm changes meaningfully
+
+def _git_hash() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+
 UPDATE_Q = None  # set in pool initializer
+_RUN_CONTEXT: dict = {}  # set in main(), forwarded to workers
+
 @dataclass
 class RowUpdate:
     worker_name: str
@@ -62,10 +80,11 @@ TILE_DONE_TAG = "__tile_done__"
 # message to stop printer
 STOP_MSG = ("__stop__", None)
 
-def _pool_initializer(q):
+def _pool_initializer(q, run_context: dict):
     """Runs once in each worker process; gives workers access to the queue."""
     global UPDATE_Q
     UPDATE_Q = q
+    timers.set_run_context(**run_context)
 
 def _calc_wrapper(opt_tuple):
     """
@@ -297,29 +316,46 @@ def main(args, kwargs):
                             max_z, temp_dir, infra_bool))
 
     # Calculation
-    logging.info('Multiprocessing starts, used cores: {}'.format(cpu_count() - 1))
-    # Calculation
     n_workers = max(1, mp.cpu_count() - 1)
     total_tiles = len(optList)
     logging.info('Multiprocessing starts, used cores: {}'.format(n_workers))
     print(f"{n_workers} processes started and {total_tiles} calculations to perform.")
-    
+
+    run_context = {
+        "version": VERSION,
+        "git_hash": _git_hash(),
+    }
+
     # queue for status updates
     q = mp.Manager().Queue()
-    
+
     # start the printer as a process (keeps terminal output serialized & pretty)
     printer = mp.Process(target=progress_printer, args=(n_workers, total_tiles, q), daemon=True)
     printer.start()
-    
-    # start the pool with initializer so each worker can access UPDATE_Q
-    with mp.Pool(processes=n_workers, initializer=_pool_initializer, initargs=(q,)) as pool:
-        # Use imap_unordered so tiles complete out-of-order but streaming stays live
+
+    # start the pool with initializer so each worker can access UPDATE_Q and timing context
+    with mp.Pool(processes=n_workers, initializer=_pool_initializer, initargs=(q, run_context)) as pool:
         list(pool.imap_unordered(_calc_wrapper, optList, chunksize=1))
-    
+
     # tell printer to stop and wait for it
     q.put(STOP_MSG)
     printer.join()
 
+
+    # Merge per-tile timing CSVs into one master file in res_dir
+    tile_csvs = sorted(glob.glob(temp_dir + "timings_*.csv"))
+    if tile_csvs:
+        master_path = directory + res_dir + "timings.csv"
+        with open(master_path, "w", newline="", encoding="utf-8") as out_fh:
+            writer = None
+            for tile_csv in tile_csvs:
+                with open(tile_csv, newline="", encoding="utf-8") as in_fh:
+                    reader = csv.DictReader(in_fh)
+                    if writer is None:
+                        writer = csv.DictWriter(out_fh, fieldnames=reader.fieldnames)
+                        writer.writeheader()
+                    writer.writerows(reader)
+        logging.info(f"Timing data written to {master_path}")
 
     logging.info('Calculation finished, merging results.')
     

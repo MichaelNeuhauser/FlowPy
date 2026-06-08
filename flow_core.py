@@ -29,13 +29,16 @@ of DEM, return arrays)
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import sys
+import multiprocessing as mp
+
 import numpy as np
 from datetime import datetime
 import logging
 from flow_class import Cell
+import timers
+from timers import timeit, timed
 
-
+@timeit()
 def get_start_idx(dem, release):
     """Sort Release Pixels by altitude and return the result as lists for the 
     Rows and Columns, starting with the highest altitude
@@ -57,7 +60,7 @@ def get_start_idx(dem, release):
         # Sort this lists by altitude
     return row_list, col_list   
 
-
+@timeit()
 def back_calculation(back_cell):
     """Here the back calculation from a run out pixel that hits a infrastructure
     to the release pixel is performed.
@@ -86,7 +89,7 @@ def back_calculation(back_cell):
     #print('\n Backcalculation needed: ' + str(end - start) + ' seconds')
     return back_list
    
-    
+@timeit("calculation(tile)")    
 def calculation(optTuple):
     """This is the core function where all the data handling and calculation is
     done. 
@@ -108,11 +111,19 @@ def calculation(optTuple):
     
     temp_dir = optTuple[8]
     infra_bool = optTuple[9]
-    
-    dem = np.load(temp_dir + "dem_{}_{}.npy".format(optTuple[0], optTuple[1]))
-    release = np.load(temp_dir + "init_{}_{}.npy".format(optTuple[0], optTuple[1]))
-    if infra_bool:
-       infra = np.load(temp_dir + "infra_{}_{}.npy".format(optTuple[0], optTuple[1])) 
+    tile_i, tile_j = optTuple[0], optTuple[1]
+
+    timers.set_run_context(
+        tile_i=tile_i,
+        tile_j=tile_j,
+        worker=mp.current_process().name,
+    )
+
+    with timed("tile IO (npy loads)"):
+        dem = np.load(temp_dir + "dem_{}_{}.npy".format(optTuple[0], optTuple[1]))
+        release = np.load(temp_dir + "init_{}_{}.npy".format(optTuple[0], optTuple[1]))
+        if infra_bool:
+           infra = np.load(temp_dir + "infra_{}_{}.npy".format(optTuple[0], optTuple[1])) 
     
     alpha = float(optTuple[2])
     exp = float(optTuple[3])
@@ -253,8 +264,8 @@ def calculation(optTuple):
     if infra_bool:
         np.save(temp_dir + "./res_backcalc_{}_{}".format(optTuple[0], optTuple[1]), backcalc)
     
-    logging.info("finished calculation {}_{}".format(optTuple[0], optTuple[1])) #ToDo!
-    #print("Finished calculation {}_{}".format(optTuple[0], optTuple[1]))
-    
-    end = datetime.now()       
-    #print('\n Time needed: ' + str(end - start))
+    logging.info("finished calculation {}_{}".format(optTuple[0], optTuple[1]))
+
+    end = datetime.now()
+
+    timers.flush_to_csv(temp_dir + "timings_{}_{}.csv".format(tile_i, tile_j))
